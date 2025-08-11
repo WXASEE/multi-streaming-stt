@@ -221,31 +221,47 @@ export default function Page() {
           let currentRaw = 'S0';  // デフォルトを'S0'に
           let buf: string[] = [];
           const flush = () => {
+            console.log('Flushing buffer:', { currentRaw, bufLength: buf.length, bufContent: buf.join(' ') });
             if (!buf.length) return;
             const mapped = mapperRef.current.mapLabel(currentRaw);
+            const text = buf.join('');  // 空白なしで結合（日本語の場合）
+            console.log('Adding segment:', { speaker: mapped, text });
             setDebug(d => ({
               ...d,
               rawToMapped: { ...d.rawToMapped, [currentRaw]: mapped }
             }));
-            setSegments(s => [...s, { speaker: mapped, text: buf.join(' ') }]);
+            setSegments(s => [...s, { speaker: mapped, text }]);
             buf = [];
           };
 
           for (const it of alt.Items ?? []) {
+            console.log('Processing item:', { Type: it.Type, Content: it.Content, Speaker: it.Speaker });
+            
             if (it.Type === 'speaker-change') {
               flush();
-            } else {
-              // Speakerフィールドが存在する場合のみ話者を更新
+            } else if (it.Type === 'pronunciation') {
+              // pronunciationの場合は話者情報を更新
               if (typeof it.Speaker !== 'undefined' && it.Speaker !== null) {
                 const raw = String(it.Speaker).startsWith('spk_') ? String(it.Speaker).replace(/^spk_/, 'S') : `S${it.Speaker}`;
                 if (raw !== currentRaw) { 
                   flush(); 
                   currentRaw = raw; 
+                  console.log('Speaker changed to:', currentRaw);
                 }
               }
-              if (it.Content) buf.push(it.Content);
+              if (it.Content) {
+                buf.push(it.Content);
+                console.log('Added to buffer:', it.Content, 'Current buffer:', buf);
+              }
+            } else if (it.Type === 'punctuation') {
+              // punctuationは現在の話者に追加（Speaker情報がないため）
+              if (it.Content) {
+                buf.push(it.Content);
+                console.log('Added punctuation to buffer:', it.Content);
+              }
             }
           }
+          console.log('Final flush for segment');
           flush();
         }
       };
