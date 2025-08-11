@@ -1,36 +1,95 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Multi-Speaker Real-time Transcription
 
-## Getting Started
+Real-time multi-speaker transcription using AWS Transcribe Streaming with WebSocket presigned URLs.
 
-First, run the development server:
+## Features
 
+- 🎙️ Real-time audio transcription
+- 👥 Multi-speaker diarization (2-3 speakers)
+- 🔒 Secure presigned URL authentication
+- 📊 Debug panel with metrics
+- 🌍 Multi-language support (Japanese/English)
+
+## Prerequisites
+
+- Node.js 18+
+- pnpm
+- AWS account with Transcribe permissions
+- AWS credentials configured
+
+## Setup
+
+1. Install dependencies:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Configure AWS credentials in `.env.local`:
+```bash
+AWS_REGION=ap-northeast-1
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+AWS credentials will be automatically loaded from:
+- Environment variables
+- IAM role (EC2/ECS/Lambda)
+- AWS credentials file (~/.aws/credentials)
+- AWS SSO
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+3. Required IAM permissions:
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["transcribe:StartStreamTranscription"],
+      "Resource": "*"
+    }
+  ]
+}
+```
 
-## Learn More
+## Development
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+pnpm dev
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Open [http://localhost:3000](http://localhost:3000)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Usage
 
-## Deploy on Vercel
+1. Select language (Japanese/English)
+2. Choose expected number of speakers (auto/2/3)
+3. Toggle speaker diarization ON/OFF
+4. Click "開始" to start transcription
+5. Speak into your microphone
+6. View real-time transcripts with speaker labels
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Architecture
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Frontend**: Next.js 15 + TypeScript + Tailwind CSS v4 + shadcn/ui
+- **Audio**: Browser microphone → 16kHz PCM16LE downsampling
+- **Auth**: Server-side presigned WebSocket URLs (300s expiry)
+- **Streaming**: Direct browser ↔ AWS Transcribe WebSocket connection
+- **Speaker mapping**: Dynamic label assignment (A, B, C...)
+
+## Debug Panel
+
+Monitor real-time metrics:
+- WebSocket connection state
+- Audio levels (RMS)
+- Latency measurements
+- Speaker label mapping
+- Error tracking
+
+## Limitations
+
+- AWS Transcribe doesn't support fixed speaker counts
+- Speaker labels may fluctuate with 2-3 speakers
+- UI applies post-processing to normalize labels
+- Presigned URLs expire after 5 minutes (reconnection required)
+
+## License
+
+MIT
