@@ -21,6 +21,7 @@ export default function Page() {
   const [language, setLanguage] = useState<'ja-JP'|'en-US'>('ja-JP');
   const [diar, setDiar] = useState(true);
   const [stabilize, setStabilize] = useState(true);
+  const [showPartial, setShowPartial] = useState(false);  // 部分結果を表示するかどうか
   const [expected, setExpected] = useState<'auto'|'2'|'3'>('auto');
 
   const [segments, setSegments] = useState<Segment[]>([]);
@@ -75,7 +76,17 @@ export default function Page() {
         language, diarization: String(diar), stabilize: String(stabilize), sampleRate: '16000', sessionId
       });
       const r = await fetch(`/api/transcribe/presign?${p.toString()}`);
-      const { url, region, expiresAt } = await r.json();
+      const data = await r.json();
+      console.log('Presign API response:', data);
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      const { url, region, expiresAt } = data;
+      if (!url) {
+        throw new Error('No URL received from presign API');
+      }
 
       setDebug(d => ({ ...d, region, sessionId, expiresAt, lastError: null }));
 
@@ -87,39 +98,127 @@ export default function Page() {
       setDebug(d => ({ ...d, inRate: (mic as any).context?.sampleRate ?? 48000 }));
 
       // WS 接続
+      console.log('Connecting to WebSocket URL:', url.substring(0, 100) + '...');
       const ws = new WebSocket(url);
       ws.binaryType = 'arraybuffer';
       wsRef.current = ws;
       setWsState(ws.readyState);
 
-      ws.onopen = async () => {
+      let isClosing = false;
+
+      ws.onopen = () => {
+        console.log('WebSocket opened');
         setWsState(ws.readyState);
-        for await (const pcm16 of micPcm16Stream(mic)) {
-          ws.send(encodeAudioEvent(pcm16));
-          const rms = rmsLevel(pcm16);
-          pushLatency(performance.now());
-          setDebug(d => ({ ...d, chunksSent: d.chunksSent + 1, currentRms: rms }));
-          if (ws.readyState !== WebSocket.OPEN) break;
-        }
-        // 終了シグナル（空AudioEvent）
-        ws.send(encodeAudioEvent(new Int16Array(0)));
-        ws.close();
+        
+        // マイクストリームを開始
+        (async () => {
+          try {
+            let firstChunk = true;
+            for await (const pcm16 of micPcm16Stream(mic)) {
+              if (isClosing || ws.readyState !== WebSocket.OPEN) break;
+              
+              if (firstChunk) {
+                console.log('Sending first audio chunk, length:', pcm16.length, 'bytes:', pcm16.byteLength);
+                console.log('First 10 samples:', Array.from(pcm16.slice(0, 10)));
+                firstChunk = false;
+              }
+              
+              const audioEvent = encodeAudioEvent(pcm16);
+              ws.send(audioEvent);
+              
+              const rms = rmsLevel(pcm16);
+              pushLatency(performance.now());
+              setDebug(d => ({ ...d, chunksSent: d.chunksSent + 1, currentRms: rms }));
+              
+              // 音声レベルが高い時だけログ
+              if (rms > 0.01) {
+                console.log('Audio sent with RMS:', rms, 'chunk size:', pcm16.length);
+              }
+            }
+            
+            // 終了シグナル（空AudioEvent）
+            if (ws.readyState === WebSocket.OPEN) {
+              console.log('Sending end signal');
+              ws.send(encodeAudioEvent(new Int16Array(0)));
+              ws.close();
+            }
+          } catch (err) {
+            console.error('Audio streaming error:', err);
+            setDebug(d => ({ ...d, lastError: String(err) }));
+          }
+        })();
       };
 
       ws.onmessage = (e) => {
+        console.log('WebSocket message received, data size:', e.data.byteLength || e.data.length);
         setWsState(ws.readyState);
         const payload = tryDecode(e) as TranscriptEvent | null;
-        if (!payload) return;
+        if (!payload) {
+          console.log('No payload decoded from message');
+          return;
+        }
+        console.log('Transcript event received:', payload);
         setDebug(d => ({ ...d, eventsRecv: d.eventsRecv + 1 }));
         calcAvgLatency(performance.now());
 
         const results = payload.Transcript?.Results ?? [];
+        console.log('Results count:', results.length);
+        
         for (const r of results) {
-          if (r.IsPartial) continue; // 確定のみ追加
-          const alt = r.Alternatives?.[0]; if (!alt) continue;
+          console.log('Result IsPartial:', r.IsPartial, 'Alternatives:', r.Alternatives?.length);
+          
+          const alt = r.Alternatives?.[0]; 
+          if (!alt) {
+            console.log('No alternatives found');
+            continue;
+          }
+          
+          // 部分結果でも最終結果でも処理
+          console.log(r.IsPartial ? 'Partial' : 'Final', 'transcript:', alt.Transcript);
+          console.log('Items count:', alt.Items?.length);
+          
+          // 最初のアイテムのSpeaker情報を確認
+          if (alt.Items?.length) {
+            console.log('First item Speaker field:', alt.Items[0].Speaker);
+            console.log('All Speaker values:', alt.Items.map(it => it.Speaker));
+          }
+          
+          // 部分結果の処理
+          if (r.IsPartial) {
+            if (!showPartial) {
+              continue;  // showPartialがfalseの場合はスキップ
+            }
+            // 部分結果を表示する場合、[partial]マーカーを付ける
+            if (alt.Transcript && alt.Transcript.trim()) {
+              const mapped = mapperRef.current.mapLabel('S0');
+              setSegments(s => {
+                // 最後のセグメントが同じ話者の部分結果なら置き換え
+                const lastIdx = s.length - 1;
+                if (lastIdx >= 0 && s[lastIdx].text.startsWith('[partial]')) {
+                  return [...s.slice(0, lastIdx), { speaker: mapped, text: `[partial] ${alt.Transcript}` }];
+                }
+                return [...s, { speaker: mapped, text: `[partial] ${alt.Transcript}` }];
+              });
+            }
+            continue;
+          }
+
+          // Transcriptが空の場合はスキップ
+          if (!alt.Transcript || alt.Transcript.trim() === '') {
+            console.log('Empty transcript, skipping');
+            continue;
+          }
+
+          // 話者分離がない場合は、テキスト全体をデフォルト話者で追加
+          if (!alt.Items || alt.Items.length === 0) {
+            console.log('No items, using full transcript');
+            const mapped = mapperRef.current.mapLabel('S0');
+            setSegments(s => [...s, { speaker: mapped, text: alt.Transcript }]);
+            continue;
+          }
 
           // 確定文: Items からスピーカーごとに段落化
-          let currentRaw = 'S?';
+          let currentRaw = 'S0';  // デフォルトを'S0'に
           let buf: string[] = [];
           const flush = () => {
             if (!buf.length) return;
@@ -136,9 +235,13 @@ export default function Page() {
             if (it.Type === 'speaker-change') {
               flush();
             } else {
-              if (typeof it.Speaker !== 'undefined') {
+              // Speakerフィールドが存在する場合のみ話者を更新
+              if (typeof it.Speaker !== 'undefined' && it.Speaker !== null) {
                 const raw = String(it.Speaker).startsWith('spk_') ? String(it.Speaker).replace(/^spk_/, 'S') : `S${it.Speaker}`;
-                if (raw !== currentRaw) { flush(); currentRaw = raw; }
+                if (raw !== currentRaw) { 
+                  flush(); 
+                  currentRaw = raw; 
+                }
               }
               if (it.Content) buf.push(it.Content);
             }
@@ -148,11 +251,22 @@ export default function Page() {
       };
 
       ws.onerror = (e) => {
+        console.error('WebSocket error:', e);
         setWsState(ws.readyState);
         setDebug(d => ({ ...d, lastError: 'WebSocket error' }));
       };
-      ws.onclose = () => {
+      ws.onclose = (e) => {
+        console.log('WebSocket closed:', { code: e.code, reason: e.reason, wasClean: e.wasClean });
+        isClosing = true;
         setWsState(ws.readyState);
+        
+        // エラーコードに基づいてメッセージを設定
+        if (e.code === 1000 && e.reason.includes('exception')) {
+          setDebug(d => ({ ...d, lastError: `AWS Transcribe error: ${e.reason}` }));
+        } else if (e.code !== 1000) {
+          setDebug(d => ({ ...d, lastError: `WebSocket closed with code ${e.code}: ${e.reason}` }));
+        }
+        
         stop(); // 資源解放
       };
     } catch (e: any) {
@@ -207,6 +321,10 @@ export default function Page() {
               <div className="flex items-center gap-3">
                 <Switch id="stab" checked={stabilize} onCheckedChange={setStabilize}/>
                 <Label htmlFor="stab">部分結果の安定化</Label>
+              </div>
+              <div className="flex items-center gap-3">
+                <Switch id="partial" checked={showPartial} onCheckedChange={setShowPartial}/>
+                <Label htmlFor="partial">部分結果を表示</Label>
               </div>
               <div className="md:col-span-3 flex gap-3">
                 {!isStreaming

@@ -10,6 +10,7 @@ import { randomUUID } from 'crypto';
 export async function GET(req: NextRequest) {
   try {
     const region = process.env.AWS_REGION;
+    console.log('Presign API called with region:', region);
     if (!region) return NextResponse.json({ error: 'AWS_REGION is required' }, { status: 500 });
 
     const url = new URL(req.url);
@@ -33,6 +34,10 @@ export async function GET(req: NextRequest) {
     }
 
     const credentials = await defaultProvider()();
+    console.log('Credentials loaded:', { 
+      accessKeyId: credentials.accessKeyId?.substring(0, 10) + '...',
+      sessionToken: credentials.sessionToken ? 'Present' : 'Not present' 
+    });
     const signer = new SignatureV4({
       service: 'transcribe',
       region,
@@ -61,6 +66,9 @@ export async function GET(req: NextRequest) {
     const wssUrl = `wss://${host}${signed.path}?${qs}`;
     const expiresAt = Date.now() + expiresIn * 1000;
 
+    console.log('Generated WSS URL:', wssUrl.substring(0, 100) + '...');
+    console.log('Session ID:', sessionId);
+    
     return NextResponse.json({ url: wssUrl, sessionId, region, expiresAt });
   } catch (e: any) {
     console.error(e);

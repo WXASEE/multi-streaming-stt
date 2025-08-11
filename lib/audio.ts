@@ -29,10 +29,43 @@ export function downsampleTo16k(float32: Float32Array, inputRate: number) {
 
 export async function* micPcm16Stream(mic: MicrophoneStream): AsyncGenerator<Int16Array, void, unknown> {
   const rate = (mic as any).context?.sampleRate ?? 48000;
+  let buffer: Float32Array[] = [];
+  let bufferSamples = 0;
+  const TARGET_CHUNK_MS = 100; // 100ms chunks
+  const TARGET_SAMPLES = Math.floor((TARGET_CHUNK_MS / 1000) * rate);
+  
   for await (const chunk of mic) {
     const raw = MicrophoneStream.toRaw(chunk) as Float32Array | null;
     if (!raw) continue;
-    yield downsampleTo16k(raw, rate);
+    
+    buffer.push(raw);
+    bufferSamples += raw.length;
+    
+    // Accumulate ~100ms of audio before sending
+    if (bufferSamples >= TARGET_SAMPLES) {
+      const combined = new Float32Array(bufferSamples);
+      let offset = 0;
+      for (const buf of buffer) {
+        combined.set(buf, offset);
+        offset += buf.length;
+      }
+      
+      yield downsampleTo16k(combined, rate);
+      
+      buffer = [];
+      bufferSamples = 0;
+    }
+  }
+  
+  // Send remaining buffer
+  if (bufferSamples > 0) {
+    const combined = new Float32Array(bufferSamples);
+    let offset = 0;
+    for (const buf of buffer) {
+      combined.set(buf, offset);
+      offset += buf.length;
+    }
+    yield downsampleTo16k(combined, rate);
   }
 }
 
