@@ -2,13 +2,17 @@ type Slot = 'A' | 'B' | 'C' | 'D' | 'E';
 const SLOT_LABELS: Slot[] = ['A','B','C','D','E'];
 
 export class SpeakerMapper {
-  constructor(private maxSlots: number | 'auto' = 'auto') {}
+  private maxSlots: number | 'auto' = 'auto';
   private map = new Map<string, Slot>();      // raw -> slot
   private order: string[] = [];               // Order of addition
   private lastSlot: Slot | null = null;
 
-  setMaxSlots(n: number | 'auto') {
-    this.maxSlots = n;
+  constructor(expected: number | 'auto' | '2' | '3' = 'auto') {
+    this.maxSlots = expected === 'auto' ? 'auto' : Number(expected);
+  }
+
+  setMaxSlots(n: number | 'auto' | '2' | '3') {
+    this.maxSlots = n === 'auto' ? 'auto' : Number(n);
   }
 
   reset() {

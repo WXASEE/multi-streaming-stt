@@ -46,9 +46,6 @@ export function useWebSocketTranscription(
   const mapperRef = useRef(new SpeakerMapper(settings.expectedSpeakers));
   const lastSendTimeRef = useRef<number[]>([]);
 
-  const updateDebugInfo = useCallback((updates: Partial<DebugInfo>) => {
-    setDebugInfo(prev => ({ ...prev, ...updates }));
-  }, []);
 
   const pushLatency = useCallback((ts: number) => {
     const arr = lastSendTimeRef.current;
@@ -61,10 +58,11 @@ export function useWebSocketTranscription(
     if (!arr.length) return;
     const last = arr[arr.length - 1];
     const ms = Math.max(0, arrivalTs - last);
-    updateDebugInfo({ 
-      avgLatencyMs: Math.round((debugInfo.avgLatencyMs * 0.8) + (ms * 0.2)) 
-    });
-  }, [debugInfo.avgLatencyMs, updateDebugInfo]);
+    setDebugInfo(prev => ({ 
+      ...prev,
+      avgLatencyMs: Math.round((prev.avgLatencyMs * 0.8) + (ms * 0.2)) 
+    }));
+  }, []);
 
   const processTranscriptEvent = useCallback((payload: TranscriptEvent) => {
     const results = payload.Transcript?.Results ?? [];
@@ -77,17 +75,18 @@ export function useWebSocketTranscription(
       if (result.IsPartial) {
         if (!settings.showPartial) continue;
         
-        if (alt.Transcript && alt.Transcript.trim()) {
+        const transcript = alt.Transcript;
+        if (transcript && transcript.trim()) {
           const mapped = mapperRef.current.mapLabel('S0');
           setSegments(s => {
             const lastIdx = s.length - 1;
             if (lastIdx >= 0 && s[lastIdx].text.startsWith('[partial]')) {
               return [...s.slice(0, lastIdx), { 
                 speaker: mapped, 
-                text: `[partial] ${alt.Transcript}` 
+                text: `[partial] ${transcript}` 
               }];
             }
-            return [...s, { speaker: mapped, text: `[partial] ${alt.Transcript}` }];
+            return [...s, { speaker: mapped, text: `[partial] ${transcript}` }];
           });
         }
         continue;
@@ -99,7 +98,8 @@ export function useWebSocketTranscription(
       // Handle no speaker diarization
       if (!alt.Items || alt.Items.length === 0) {
         const mapped = mapperRef.current.mapLabel('S0');
-        setSegments(s => [...s, { speaker: mapped, text: alt.Transcript }]);
+        const transcript = alt.Transcript || '';
+        setSegments(s => [...s, { speaker: mapped, text: transcript }]);
         continue;
       }
 
@@ -111,7 +111,7 @@ export function useWebSocketTranscription(
         if (!buffer.length) return;
         const mapped = mapperRef.current.mapLabel(currentRaw);
         const text = buffer.join('');
-        updateDebugInfo(prev => ({
+        setDebugInfo(prev => ({
           ...prev,
           rawToMapped: { ...prev.rawToMapped, [currentRaw]: mapped }
         }));
@@ -139,7 +139,7 @@ export function useWebSocketTranscription(
       }
       flush();
     }
-  }, [settings.showPartial, updateDebugInfo]);
+  }, [settings.showPartial]);
 
   const stop = useCallback(() => {
     try {
@@ -176,7 +176,7 @@ export function useWebSocketTranscription(
       if (!data.url) throw new Error(ERROR_MESSAGES.PRESIGN_ERROR);
 
       const { url, region, expiresAt } = data;
-      updateDebugInfo({ region: region || '', sessionId, expiresAt: expiresAt || 0, lastError: null });
+      setDebugInfo(prev => ({ ...prev, region: region || '', sessionId, expiresAt: expiresAt || 0, lastError: null }));
 
       // Start microphone
       const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -190,7 +190,7 @@ export function useWebSocketTranscription(
       const mic = new MicrophoneStream();
       mic.setStream(stream);
       micRef.current = mic;
-      updateDebugInfo({ inRate: (mic as any).context?.sampleRate ?? AUDIO_CONFIG.INPUT_SAMPLE_RATE });
+      setDebugInfo(prev => ({ ...prev, inRate: (mic as any).context?.sampleRate ?? AUDIO_CONFIG.INPUT_SAMPLE_RATE }));
 
       // WebSocket connection
       const ws = new WebSocket(url);
@@ -214,7 +214,7 @@ export function useWebSocketTranscription(
               
               const rms = rmsLevel(pcm16);
               pushLatency(performance.now());
-              updateDebugInfo(prev => ({ 
+              setDebugInfo(prev => ({ 
                 ...prev,
                 chunksSent: prev.chunksSent + 1, 
                 currentRms: rms 
@@ -227,7 +227,7 @@ export function useWebSocketTranscription(
               ws.close();
             }
           } catch (err) {
-            updateDebugInfo({ lastError: String(err) });
+            setDebugInfo(prev => ({ ...prev, lastError: String(err) }));
           }
         })();
       };
@@ -237,14 +237,14 @@ export function useWebSocketTranscription(
         const payload = tryDecode(e) as TranscriptEvent | null;
         if (!payload) return;
         
-        updateDebugInfo(prev => ({ ...prev, eventsRecv: prev.eventsRecv + 1 }));
+        setDebugInfo(prev => ({ ...prev, eventsRecv: prev.eventsRecv + 1 }));
         calcAvgLatency(performance.now());
         processTranscriptEvent(payload);
       };
 
       ws.onerror = () => {
         setWsState(ws.readyState as WebSocketState);
-        updateDebugInfo({ lastError: ERROR_MESSAGES.WEBSOCKET_ERROR });
+        setDebugInfo(prev => ({ ...prev, lastError: ERROR_MESSAGES.WEBSOCKET_ERROR }));
       };
 
       ws.onclose = (e) => {
@@ -252,19 +252,19 @@ export function useWebSocketTranscription(
         setWsState(ws.readyState as WebSocketState);
         
         if (e.code === 1000 && e.reason.includes('exception')) {
-          updateDebugInfo({ lastError: `${ERROR_MESSAGES.TRANSCRIBE_ERROR}: ${e.reason}` });
+          setDebugInfo(prev => ({ ...prev, lastError: `${ERROR_MESSAGES.TRANSCRIBE_ERROR}: ${e.reason}` }));
         } else if (e.code !== 1000) {
-          updateDebugInfo({ lastError: `WebSocket closed with code ${e.code}: ${e.reason}` });
+          setDebugInfo(prev => ({ ...prev, lastError: `WebSocket closed with code ${e.code}: ${e.reason}` }));
         }
         
         stop();
       };
     } catch (e: any) {
-      updateDebugInfo({ lastError: e?.message ?? String(e) });
+      setDebugInfo(prev => ({ ...prev, lastError: e?.message ?? String(e) }));
       setStreaming(false);
       stop();
     }
-  }, [settings, updateDebugInfo, pushLatency, calcAvgLatency, processTranscriptEvent, stop]);
+  }, [settings, pushLatency, calcAvgLatency, processTranscriptEvent, stop]);
 
   return {
     segments,

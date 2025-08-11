@@ -48,11 +48,13 @@ export function tryDecode(e: MessageEvent): TranscriptEvent | null {
       if (!errorMessage && msg.body) {
         try {
           // If body is Uint8Array, convert to string
-          errorMessage = fromUtf8(msg.body);
+          const decoder = new TextDecoder('utf-8');
+          errorMessage = decoder.decode(msg.body);
         } catch {
           // Try to parse as JSON
           try {
-            const parsed = JSON.parse(fromUtf8(msg.body));
+            const decoder = new TextDecoder('utf-8');
+            const parsed = JSON.parse(decoder.decode(msg.body));
             errorMessage = parsed.message || parsed.Message || JSON.stringify(parsed);
           } catch {
             errorMessage = 'Unable to parse error message';

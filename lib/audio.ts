@@ -34,7 +34,7 @@ export async function* micPcm16Stream(mic: MicrophoneStream): AsyncGenerator<Int
   const TARGET_CHUNK_MS = 100; // 100ms chunks
   const TARGET_SAMPLES = Math.floor((TARGET_CHUNK_MS / 1000) * rate);
   
-  for await (const chunk of mic) {
+  for await (const chunk of mic as any) {
     const raw = MicrophoneStream.toRaw(chunk) as Float32Array | null;
     if (!raw) continue;
     
