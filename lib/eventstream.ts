@@ -4,7 +4,7 @@ import { toUtf8, fromUtf8 } from '@aws-sdk/util-utf8-browser';
 const marshaller = new EventStreamMarshaller(toUtf8, fromUtf8);
 
 export function encodeAudioEvent(pcm16: Int16Array) {
-  // Int16ArrayのバイトデータをUint8Arrayに正しく変換
+  // Convert Int16Array byte data to Uint8Array correctly
   const uint8Array = new Uint8Array(pcm16.buffer, pcm16.byteOffset, pcm16.byteLength);
   
   return marshaller.marshall({
@@ -27,7 +27,7 @@ export type TranscriptEvent = {
         Content?: string;
         StartTime?: number;
         EndTime?: number;
-        Speaker?: string | number; // 実際は number が多い
+        Speaker?: string | number; // Usually a number
       }>;
     }>;
   }>}
@@ -39,18 +39,18 @@ export function tryDecode(e: MessageEvent): TranscriptEvent | null {
     const mtype = msg.headers[':message-type']?.value;
     const etype = msg.headers[':event-type']?.value;
     
-    // エラーイベントをキャッチ
+    // Catch error events
     if (mtype === 'exception') {
       const exceptionType = msg.headers[':exception-type']?.value;
       let errorMessage = msg.headers[':message']?.value;
       
-      // メッセージがヘッダーにない場合、bodyから取得
+      // If message is not in headers, get from body
       if (!errorMessage && msg.body) {
         try {
-          // bodyがUint8Arrayの場合、文字列に変換
+          // If body is Uint8Array, convert to string
           errorMessage = fromUtf8(msg.body);
         } catch {
-          // JSONとしてパースを試みる
+          // Try to parse as JSON
           try {
             const parsed = JSON.parse(fromUtf8(msg.body));
             errorMessage = parsed.message || parsed.Message || JSON.stringify(parsed);
@@ -60,8 +60,6 @@ export function tryDecode(e: MessageEvent): TranscriptEvent | null {
         }
       }
       
-      console.error('AWS Transcribe Exception:', exceptionType);
-      console.error('Error Message:', errorMessage);
       return null;
     }
     
@@ -69,43 +67,38 @@ export function tryDecode(e: MessageEvent): TranscriptEvent | null {
       try {
         let payload;
         
-        // Uint8Arrayの場合は文字列にデコードしてパース
+        // If Uint8Array, decode to string and parse
         if (msg.body instanceof Uint8Array) {
-          // TextDecoderを使って直接デコード
+          // Use TextDecoder to decode directly
           const decoder = new TextDecoder('utf-8');
           const bodyStr = decoder.decode(msg.body);
-          // console.log('Decoded TranscriptEvent:', bodyStr);  // デバッグ用
           
-          // 空の場合は空のTranscriptEventを返す
+          // Return empty TranscriptEvent if empty
           if (!bodyStr || bodyStr.trim() === '') {
             return { Transcript: { Results: [] } };
           }
           
           payload = JSON.parse(bodyStr);
         }
-        // 既にオブジェクトの場合
+        // If already an object
         else if (typeof msg.body === 'object') {
           payload = msg.body;
         }
-        // 文字列の場合
+        // If a string
         else if (typeof msg.body === 'string') {
           payload = JSON.parse(msg.body);
         }
-        // その他の型の場合
+        // Other types
         else {
-          console.warn('Unexpected body type:', typeof msg.body);
           return null;
         }
         
         return payload as TranscriptEvent;
       } catch (parseErr) {
-        console.error('Failed to parse TranscriptEvent:', parseErr);
-        console.error('Body content:', msg.body);
         return null;
       }
     }
   } catch (err) {
-    console.error('Failed to decode message:', err);
   }
   return null;
 }

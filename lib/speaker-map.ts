@@ -4,7 +4,7 @@ const SLOT_LABELS: Slot[] = ['A','B','C','D','E'];
 export class SpeakerMapper {
   constructor(private maxSlots: number | 'auto' = 'auto') {}
   private map = new Map<string, Slot>();      // raw -> slot
-  private order: string[] = [];               // 追加順
+  private order: string[] = [];               // Order of addition
   private lastSlot: Slot | null = null;
 
   setMaxSlots(n: number | 'auto') {
@@ -17,7 +17,7 @@ export class SpeakerMapper {
     this.lastSlot = null;
   }
 
-  // rawLabel: "S0" / "spk_0" / number 等を受け取り、UI向けの "A","B","C" にする
+  // Convert rawLabel: "S0" / "spk_0" / number etc. to UI-friendly "A", "B", "C"
   mapLabel(raw: string | number): Slot {
     const key = String(raw).replace(/^spk_/, 'S');
     const hit = this.map.get(key);
@@ -31,10 +31,10 @@ export class SpeakerMapper {
       this.lastSlot = slot;
       return slot;
     }
-    // 超過時：簡易ヒューリスティクス → 直前スロットに吸収
+    // When exceeded: Simple heuristics - absorb into previous slot
     if (this.lastSlot) return this.lastSlot;
 
-    // フォールバック：先頭に吸収
+    // Fallback: Absorb into first slot
     const firstKey = this.order[0];
     const slot = firstKey ? (this.map.get(firstKey) as Slot) : 'A';
     this.map.set(key, slot);
