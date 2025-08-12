@@ -16,6 +16,7 @@ export default function Page() {
     stabilize: true,
     showPartial: false,
     expectedSpeakers: 'auto',
+    recordLocally: true,
   });
 
   const {
@@ -25,6 +26,8 @@ export default function Page() {
     debugInfo,
     start,
     stop,
+    hasRecording,
+    downloadRecording,
   } = useWebSocketTranscription(settings);
 
   return (
@@ -43,6 +46,8 @@ export default function Page() {
               isStreaming={isStreaming}
               onStart={start}
               onStop={stop}
+              canDownload={hasRecording && !isStreaming}
+              onDownload={downloadRecording}
             />
             
             <Separator />

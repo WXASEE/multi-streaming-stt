@@ -49,6 +49,10 @@ export function useWebSocketTranscription(
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<BlobPart[]>([]);
+  const [recordingBlob, setRecordingBlob] = useState<Blob | null>(null);
+  const [recordingFileName, setRecordingFileName] = useState<string>('');
+  const objectUrlRef = useRef<string | null>(null);
+  const lastSessionIdRef = useRef<string>('');
 
 
   const pushLatency = useCallback((ts: number) => {
@@ -170,15 +174,42 @@ export function useWebSocketTranscription(
     }
   }, []);
 
+  const downloadRecording = useCallback(() => {
+    if (!recordingBlob) return;
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
+    }
+    const url = URL.createObjectURL(recordingBlob);
+    objectUrlRef.current = url;
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = recordingFileName || `recording-${Date.now()}.webm`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => {
+      if (objectUrlRef.current) {
+        URL.revokeObjectURL(objectUrlRef.current);
+        objectUrlRef.current = null;
+      }
+    }, 10000);
+  }, [recordingBlob, recordingFileName]);
+
   const start = useCallback(async () => {
     try {
       setSegments([]);
       setStreaming(true);
       mapperRef.current.reset();
       mapperRef.current.setMaxSlots(settings.expectedSpeakers);
+      // reset previous recording
+      setRecordingBlob(null);
+      setRecordingFileName('');
+      if (objectUrlRef.current) { URL.revokeObjectURL(objectUrlRef.current); objectUrlRef.current = null; }
 
       // Get presigned URL
       const sessionId = uuidv4();
+      lastSessionIdRef.current = sessionId;
       const params = new URLSearchParams({
         language: settings.language,
         diarization: String(settings.diarization),
@@ -211,44 +242,40 @@ export function useWebSocketTranscription(
       mediaStreamRef.current = stream;
       setDebugInfo(prev => ({ ...prev, inRate: (mic as any).context?.sampleRate ?? AUDIO_CONFIG.INPUT_SAMPLE_RATE }));
 
-      // Begin local recording using MediaRecorder
-      try {
-        const supportedTypes = [
-          'audio/webm;codecs=opus',
-          'audio/webm',
-          'audio/mp4',
-          'audio/ogg;codecs=opus',
-        ];
-        let mimeType = '';
-        for (const t of supportedTypes) {
-          if ((window as any).MediaRecorder && MediaRecorder.isTypeSupported(t)) { mimeType = t; break; }
+      // Begin local recording using MediaRecorder (optional)
+      if (settings.recordLocally) {
+        try {
+          const supportedTypes = [
+            'audio/webm;codecs=opus',
+            'audio/webm',
+            'audio/mp4',
+            'audio/ogg;codecs=opus',
+          ];
+          let mimeType = '';
+          for (const t of supportedTypes) {
+            if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(t)) { mimeType = t; break; }
+          }
+          const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+          recordedChunksRef.current = [];
+          recorder.ondataavailable = (e: BlobEvent) => {
+            if (e.data && e.data.size > 0) recordedChunksRef.current.push(e.data);
+          };
+          recorder.onstop = () => {
+            try {
+              const mt = recorder.mimeType || 'audio/webm';
+              const blob = new Blob(recordedChunksRef.current, { type: mt });
+              recordedChunksRef.current = [];
+              const ext = mt.includes('mp4') ? 'm4a' : (mt.includes('ogg') ? 'ogg' : 'webm');
+              const fname = `recording-${lastSessionIdRef.current}-${new Date().toISOString().replace(/[:.]/g, '-')}.${ext}`;
+              setRecordingBlob(blob);
+              setRecordingFileName(fname);
+            } catch {}
+          };
+          recorder.start(1000); // collect data every 1s
+          mediaRecorderRef.current = recorder;
+        } catch {
+          // Ignore recording errors; transcription continues
         }
-        const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
-        recordedChunksRef.current = [];
-        recorder.ondataavailable = (e: BlobEvent) => {
-          if (e.data && e.data.size > 0) recordedChunksRef.current.push(e.data);
-        };
-        recorder.onstop = () => {
-          try {
-            const mt = (recorder as any).mimeType || 'audio/webm';
-            const blob = new Blob(recordedChunksRef.current, { type: mt });
-            recordedChunksRef.current = [];
-            const url = URL.createObjectURL(blob);
-            const ext = mt.includes('mp4') ? 'm4a' : (mt.includes('ogg') ? 'ogg' : 'webm');
-            const fname = `recording-${sessionId}-${new Date().toISOString().replace(/[:.]/g, '-')}.${ext}`;
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = fname;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            setTimeout(() => URL.revokeObjectURL(url), 10_000);
-          } catch {}
-        };
-        recorder.start(1000); // collect data every 1s
-        mediaRecorderRef.current = recorder;
-      } catch {
-        // Ignore recording errors; transcription continues
       }
 
       // WebSocket connection
@@ -332,5 +359,7 @@ export function useWebSocketTranscription(
     debugInfo,
     start,
     stop,
+    hasRecording: !!recordingBlob,
+    downloadRecording,
   };
 }

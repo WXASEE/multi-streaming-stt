@@ -46,6 +46,7 @@ export interface TranscriptionSettings {
   stabilize: boolean;
   showPartial: boolean;
   expectedSpeakers: SpeakerCount;
+  recordLocally: boolean;
 }
 
 // WebSocket hook return type
@@ -56,6 +57,8 @@ export interface UseWebSocketTranscription {
   debugInfo: DebugInfo;
   start: () => Promise<void>;
   stop: () => void;
+  hasRecording: boolean;
+  downloadRecording: () => void;
 }
 
 // AWS Transcribe Item type (extended from eventstream.ts)

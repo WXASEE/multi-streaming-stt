@@ -13,6 +13,8 @@ interface TranscriptionControlsProps {
   isStreaming: boolean;
   onStart: () => void;
   onStop: () => void;
+  canDownload?: boolean;
+  onDownload?: () => void;
 }
 
 export function TranscriptionControls({
@@ -21,6 +23,8 @@ export function TranscriptionControls({
   isStreaming,
   onStart,
   onStop,
+  canDownload,
+  onDownload,
 }: TranscriptionControlsProps) {
   const updateSettings = (updates: Partial<TranscriptionSettings>) => {
     onSettingsChange({ ...settings, ...updates });
@@ -96,6 +100,15 @@ export function TranscriptionControls({
         <Label htmlFor="partial">Show Partial Results</Label>
       </div>
 
+      <div className="flex items-center gap-3">
+        <Switch 
+          id="recordLocally" 
+          checked={settings.recordLocally} 
+          onCheckedChange={(v) => updateSettings({ recordLocally: v })}
+        />
+        <Label htmlFor="recordLocally">Save Local Recording</Label>
+      </div>
+
       <div className="md:col-span-3 flex gap-3">
         {!isStreaming ? (
           <Button onClick={onStart} className="rounded-2xl">
@@ -104,6 +117,17 @@ export function TranscriptionControls({
         ) : (
           <Button variant="destructive" onClick={onStop} className="rounded-2xl">
             Stop
+          </Button>
+        )}
+
+        {!isStreaming && (
+          <Button 
+            variant="secondary" 
+            onClick={() => onDownload?.()} 
+            disabled={!canDownload}
+            className="rounded-2xl"
+          >
+            Download
           </Button>
         )}
       </div>
