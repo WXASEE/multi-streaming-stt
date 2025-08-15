@@ -1,4 +1,5 @@
 import MicrophoneStream from 'microphone-stream';
+import type { Buffer } from 'node:buffer';
 
 export function floatToPCM16(float32: Float32Array) {
   const out = new Int16Array(float32.length);
@@ -34,7 +35,7 @@ export function downsampleTo16k(float32: Float32Array, inputRate: number) {
   const TARGET_CHUNK_MS = 100; // 100ms chunks
   const TARGET_SAMPLES = Math.floor((TARGET_CHUNK_MS / 1000) * rate);
   
-    for await (const chunk of mic as AsyncIterable<Uint8Array>) {
+    for await (const chunk of mic as unknown as AsyncIterable<Buffer>) {
       const raw = MicrophoneStream.toRaw(chunk) as Float32Array | null;
     if (!raw) continue;
     
