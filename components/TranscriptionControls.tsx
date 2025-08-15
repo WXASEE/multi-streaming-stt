@@ -69,7 +69,7 @@ export function TranscriptionControls({
           </SelectContent>
         </Select>
         <p className="text-xs text-slate-500">
-          * Transcribe doesn't support speaker count limits. UI maps to max expected speakers.
+          * Transcribe doesn&apos;t support speaker count limits. UI maps to max expected speakers.
         </p>
       </div>
 
