@@ -7,7 +7,7 @@ A real-time speech-to-text web application using AWS Transcribe Streaming with W
 - **Real-time Speech-to-Text**: Transcribe audio as you speak with minimal latency
 - **Speaker Diarization**: Automatically identify and label different speakers (A, B, C, etc.)
 - **WebSocket Streaming**: Direct browser-to-AWS connection using presigned URLs
-- **Multi-language Support**: Japanese (ja-JP) and English (en-US)
+- **Multi-language Support**: Thai (th-TH) and English (en-US)
 - **Partial Results Stabilization**: Get more accurate transcriptions with stabilized partial results
 - **Debug Panel**: Monitor connection status, latency, audio levels, and speaker mapping
 - **Modern UI**: Built with Next.js 15, Tailwind CSS v4, and shadcn/ui components
@@ -67,7 +67,7 @@ cp .env.local.example .env.local
 
 Edit `.env.local` with your AWS credentials:
 ```env
-AWS_REGION=ap-northeast-1
+AWS_REGION=ap-southeast-1
 AWS_ACCESS_KEY_ID=your-access-key
 AWS_SECRET_ACCESS_KEY=your-secret-key
 ```
@@ -81,7 +81,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ## Usage
 
-1. **Select Language**: Choose between Japanese (ja-JP) or English (en-US)
+1. **Select Language**: Choose between Thai (th-TH) or English (en-US)
 2. **Configure Options**:
    - **Expected Speakers**: Set the maximum number of speakers (auto, 2, or 3)
    - **Speaker Diarization**: Enable/disable speaker identification

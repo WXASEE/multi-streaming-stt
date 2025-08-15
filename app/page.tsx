@@ -11,7 +11,7 @@ import type { TranscriptionSettings } from '@/lib/types';
 
 export default function Page() {
   const [settings, setSettings] = useState<TranscriptionSettings>({
-    language: 'ja-JP',
+    language: 'th-TH',
     diarization: true,
     stabilize: true,
     showPartial: false,
