@@ -34,7 +34,7 @@ export interface PresignResponse {
 }
 
 // Language options
-export type LanguageCode = 'ja-JP' | 'en-US';
+export type LanguageCode = 'th-TH' | 'en-US';
 
 // Speaker count options
 export type SpeakerCount = 'auto' | '2' | '3';

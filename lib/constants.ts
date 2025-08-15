@@ -16,9 +16,9 @@ export const WEBSOCKET_CONFIG = {
 
 // UI configuration
 export const UI_CONFIG = {
-  DEFAULT_LANGUAGE: 'ja-JP' as const,
+  DEFAULT_LANGUAGE: 'th-TH' as const,
   LANGUAGES: [
-    { value: 'ja-JP', label: 'ja-JP (Japanese)' },
+    { value: 'th-TH', label: 'th-TH (Thai)' },
     { value: 'en-US', label: 'en-US (English)' },
   ] as const,
   SPEAKER_COUNTS: [
