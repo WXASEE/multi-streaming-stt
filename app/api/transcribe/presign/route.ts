@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
     if (!region) return NextResponse.json({ error: 'AWS_REGION is required' }, { status: 500 });
 
     const url = new URL(req.url);
-    const language = url.searchParams.get('language') ?? 'ja-JP';
+    const language = url.searchParams.get('language') ?? 'th-TH';
     const sampleRate = url.searchParams.get('sampleRate') ?? '16000';
     const diar = url.searchParams.get('diarization') === 'true';
     const stabilize = url.searchParams.get('stabilize') === 'true';
@@ -63,7 +63,8 @@ export async function GET(req: NextRequest) {
 
     
     return NextResponse.json({ url: wssUrl, sessionId, region, expiresAt });
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message ?? 'presign failed' }, { status: 500 });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'presign failed';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
