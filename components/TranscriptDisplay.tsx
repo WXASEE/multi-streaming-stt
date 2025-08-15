@@ -24,7 +24,7 @@ export function TranscriptDisplay({ segments }: TranscriptDisplayProps) {
       await navigator.clipboard.writeText(transcriptText);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
-    } catch (e) {
+    } catch {
       try {
         // Fallback for older browsers
         const ta = document.createElement('textarea');
@@ -37,7 +37,7 @@ export function TranscriptDisplay({ segments }: TranscriptDisplayProps) {
         document.body.removeChild(ta);
         setCopied(true);
         setTimeout(() => setCopied(false), 1500);
-      } catch (err) {
+      } catch {
         setCopyErr('Failed to copy');
       }
     }

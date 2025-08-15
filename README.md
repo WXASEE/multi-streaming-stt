@@ -30,22 +30,6 @@ Browser (Display)
 - AWS Account with appropriate permissions
 - IAM user with `transcribe:StartStreamTranscriptionWebSocket` permission
 
-## AWS IAM Setup
-
-Create an IAM user with the following policy:
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": "transcribe:StartStreamTranscriptionWebSocket",
-      "Resource": "*"
-    }
-  ]
-}
-```
 
 ## Installation
 

@@ -63,7 +63,8 @@ export async function GET(req: NextRequest) {
 
     
     return NextResponse.json({ url: wssUrl, sessionId, region, expiresAt });
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message ?? 'presign failed' }, { status: 500 });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'presign failed';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
