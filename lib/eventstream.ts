@@ -41,7 +41,6 @@ export function tryDecode(e: MessageEvent): TranscriptEvent | null {
     
     // Catch error events
     if (mtype === 'exception') {
-      const exceptionType = msg.headers[':exception-type']?.value;
       let errorMessage = msg.headers[':message']?.value;
       
       // If message is not in headers, get from body
@@ -61,7 +60,8 @@ export function tryDecode(e: MessageEvent): TranscriptEvent | null {
           }
         }
       }
-      
+
+      console.error('Transcribe exception:', errorMessage);
       return null;
     }
     
@@ -96,11 +96,11 @@ export function tryDecode(e: MessageEvent): TranscriptEvent | null {
         }
         
         return payload as TranscriptEvent;
-      } catch (parseErr) {
+      } catch {
         return null;
       }
     }
-  } catch (err) {
+  } catch {
   }
   return null;
 }
